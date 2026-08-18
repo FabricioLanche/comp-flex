@@ -1,4 +1,6 @@
-import { TokenDef, GeneratedScanner } from "./types";
+import { TokenDef, GeneratedScanner, ASTNode, ASTNodeType } from "./types";
+import { PatternLexer } from "./pattern-lexer";
+import { PatternParser } from "./pattern-parser";
 
 export class CppGenerator {
     private tokens: TokenDef[];
@@ -12,14 +14,75 @@ export class CppGenerator {
             scannerCpp: this.generateScannerCpp(),
             scannerH: this.generateScannerH(),
             tokenCpp: this.generateTokenCpp(),
-            tokenH: this.generateTokenH()
+            tokenH: this.generateTokenH(),
+            mainCpp: this.generateMainCpp()
         };
+    }
+
+
+    private generateMainCpp(): string {
+        return `#include <iostream>
+#include <fstream>
+#include <string>
+#include "scanner.h"
+
+using namespace std;
+
+int main(int argc, char* argv[]) {
+    if (argc < 2) {
+        cout << "Uso: ./scanner <archivo_entrada>" << endl;
+        return 1;
+    }
+
+    ifstream inFile(argv[1]);
+    if (!inFile.is_open()) {
+        cout << "Error: no se pudo abrir " << argv[1] << endl;
+        return 1;
+    }
+
+    string input;
+    getline(inFile, input);
+    inFile.close();
+
+    Scanner scanner(input.c_str());
+    Token* tok;
+
+    string outName = string(argv[1]) + "_tokens.txt";
+    ofstream outFile(outName);
+
+    outFile << "Entrada: " << input << endl << endl;
+
+    while (true) {
+        tok = scanner.nextToken();
+
+        outFile << *tok << endl;
+        cout << *tok << endl;
+
+        if (tok->type == Token::END) {
+            delete tok;
+            outFile << "\\nScanner exitoso" << endl;
+            break;
+        }
+        if (tok->type == Token::ERR) {
+            delete tok;
+            outFile << "Caracter invalido" << endl;
+            outFile << "Scanner no exitoso" << endl;
+            break;
+        }
+        delete tok;
+    }
+
+    outFile.close();
+    return 0;
+}
+`;
     }
 
     private generateTokenH(): string {
         const tokenEnums = this.tokens.map(t => `        ${t.name},`).join('\n');
         
-        return `#ifndef TOKEN_H
+        return `
+#ifndef TOKEN_H
 #define TOKEN_H
 
 #include <string>
@@ -72,10 +135,10 @@ Token::Token(Type type)
     : type(type), text("") { }
 
 Token::Token(Type type, char c) 
-    : type(type, text(string(1, c))) { }
+    : type(type), text(string(1, c)) { }
 
 Token::Token(Type type, const string& source, int first, int last) 
-    : type(type, text(source.substr(first, last))) { }
+    : type(type), text(source.substr(first, last)) { }
 
 // -----------------------------
 // Sobrecarga de operador <<
@@ -240,94 +303,121 @@ void ejecutar_scanner(Scanner* scanner, const string& InputFile) {
 `;
     }
 
-    private generatePatternCheck(pattern: string, tokenName: string): string {
-        // Convertir patrón a código C++
-        // Soporta: [a-z], [A-Z], [0-9], +, *, ?
-        
-        if (pattern === '[a-z]' || pattern === '[A-Z]' || pattern === '[0-9]') {
-            return this.generateSimpleAtomCheck(pattern, tokenName);
+    // ===================== AST → C++ =====================
+
+    private generateCondition(node: ASTNode): string {
+        switch (node.type) {
+            case ASTNodeType.ATOM:
+                return this.atomCondition(node.value);
+            case ASTNodeType.CONCAT:
+                return `${this.generateCondition(node.left)} && ${this.generateCondition(node.right)}`;
+            case ASTNodeType.OR:
+                return `(${this.generateCondition(node.left)} || ${this.generateCondition(node.right)})`;
+            case ASTNodeType.PLUS:
+            case ASTNodeType.STAR:
+            case ASTNodeType.QUESTION:
+                return this.generateCondition(node.child);
+            default:
+                throw new Error(`Tipo de nodo no soportado: ${node}`);
         }
-        
-        if (pattern.endsWith('+')) {
-            const atom = pattern.slice(0, -1);
-            return this.generatePlusCheck(atom, tokenName);
-        }
-        
-        if (pattern.endsWith('*')) {
-            const atom = pattern.slice(0, -1);
-            return this.generateStarCheck(atom, tokenName);
-        }
-        
-        if (pattern.endsWith('?')) {
-            const atom = pattern.slice(0, -1);
-            return this.generateQuestionCheck(atom, tokenName);
-        }
-        
-        // Patrón de un solo carácter
-        if (pattern.length === 1) {
-            return this.generateSingleCharCheck(pattern, tokenName);
-        }
-        
-        throw new Error(`Patrón no soportado: ${pattern}`);
     }
 
-    private generateSimpleAtomCheck(atom: string, tokenName: string): string {
-        const condition = this.getAtomCondition(atom);
-        return `if (${condition}) {
-        current++;
-        return new Token(Token::${tokenName}, input, first, current - first);
-    }`;
-    }
+    private generateNode(node: ASTNode, tokenName: string, indent: string = "    "): string {
+        const I = indent;
+        const J = indent + "    ";
 
-    private generatePlusCheck(atom: string, tokenName: string): string {
-        const condition = this.getAtomCondition(atom);
-        return `if (${condition}) {
-        current++;
-        while (current < input.length() && ${condition.replace('input[current]', 'input[current]')}) {
-            current++;
+        switch (node.type) {
+            case ASTNodeType.ATOM: {
+                const cond = this.atomCondition(node.value);
+                return `if (${cond}) {\n${J}current++;\n${J}return new Token(Token::${tokenName}, input, first, current - first);\n${I}}`;
+            }
+
+            case ASTNodeType.OR: {
+                const leftCode = this.generateNode(node.left, tokenName, indent);
+                const rightCode = this.generateNode(node.right, tokenName, indent);
+                return `${leftCode}\n${I}${rightCode}`;
+            }
+
+            case ASTNodeType.PLUS: {
+                const cond = this.generateCondition(node.child);
+                return `if (${cond}) {\n${J}current++;\n${J}while (current < input.length() && ${cond}) {\n${J}    current++;\n${J}}\n${J}return new Token(Token::${tokenName}, input, first, current - first);\n${I}}`;
+            }
+
+            case ASTNodeType.STAR: {
+                const cond = this.generateCondition(node.child);
+                return `if (${cond}) {\n${J}current++;\n${J}while (current < input.length() && ${cond}) {\n${J}    current++;\n${J}}\n${J}return new Token(Token::${tokenName}, input, first, current - first);\n${I}}\n${I}return new Token(Token::${tokenName}, "", 0, 0);`;
+            }
+
+            case ASTNodeType.QUESTION: {
+                const cond = this.generateCondition(node.child);
+                return `if (${cond}) {\n${J}current++;\n${I}}\n${I}return new Token(Token::${tokenName}, input, first, current - first);`;
+            }
+
+            case ASTNodeType.CONCAT: {
+                const leftCond = this.generateCondition(node.left);
+
+                const rightIsQuantifier =
+                    node.right.type === ASTNodeType.PLUS ||
+                    node.right.type === ASTNodeType.STAR ||
+                    node.right.type === ASTNodeType.QUESTION;
+
+                if (rightIsQuantifier) {
+                    const rightBody = this.generateNodeNoReturn(node.right, tokenName, J);
+                    return `if (${leftCond}) {\n${J}current++;\n${J}${rightBody}\n${I}}`;
+                }
+
+                const rightCode = this.generateNode(node.right, tokenName, J);
+                return `if (${leftCond}) {\n${J}current++;\n${J}${rightCode}\n${I}}`;
+            }
+
+            default:
+                throw new Error(`Tipo de nodo no soportado: ${node}`);
         }
-        return new Token(Token::${tokenName}, input, first, current - first);
-    }`;
     }
 
-    private generateStarCheck(atom: string, tokenName: string): string {
-        const condition = this.getAtomCondition(atom);
-        return `if (${condition}) {
-        current++;
-        while (current < input.length() && ${condition.replace('input[current]', 'input[current]')}) {
-            current++;
+    private generateNodeNoReturn(node: ASTNode, tokenName: string, indent: string = "    "): string {
+        const I = indent;
+        const J = indent + "    ";
+
+        switch (node.type) {
+            case ASTNodeType.PLUS: {
+                const cond = this.generateCondition(node.child);
+                return `while (current < input.length() && ${cond}) {\n${J}current++;\n${I}}\n${I}return new Token(Token::${tokenName}, input, first, current - first);`;
+            }
+
+            case ASTNodeType.STAR: {
+                const cond = this.generateCondition(node.child);
+                return `while (current < input.length() && ${cond}) {\n${J}current++;\n${I}}\n${I}return new Token(Token::${tokenName}, input, first, current - first);`;
+            }
+
+            case ASTNodeType.QUESTION: {
+                const cond = this.generateCondition(node.child);
+                return `if (${cond}) {\n${J}current++;\n${I}}\n${I}return new Token(Token::${tokenName}, input, first, current - first);`;
+            }
+
+            default:
+                return this.generateNode(node, tokenName, indent);
         }
-        return new Token(Token::${tokenName}, input, first, current - first);
-    }
-    // Caso vacío (cero ocurrencias)
-    return new Token(Token::${tokenName}, "", 0, 0);`;
     }
 
-    private generateQuestionCheck(atom: string, tokenName: string): string {
-        const condition = this.getAtomCondition(atom);
-        return `if (${condition}) {
-        current++;
-    }
-    return new Token(Token::${tokenName}, input, first, current - first);`;
-    }
-
-    private generateSingleCharCheck(char: string, tokenName: string): string {
-        return `if (input[current] == '${char}') {
-        current++;
-        return new Token(Token::${tokenName}, input[current - 1]);
-    }`;
-    }
-
-    private getAtomCondition(atom: string): string {
+    private atomCondition(atom: string): string {
         switch (atom) {
-            case '[a-z]':
+            case "[a-z]":
                 return "input[current] >= 'a' && input[current] <= 'z'";
-            case '[A-Z]':
+            case "[A-Z]":
                 return "input[current] >= 'A' && input[current] <= 'Z'";
-            case '[0-9]':
+            case "[0-9]":
                 return "isdigit(input[current])";
             default:
                 throw new Error(`Átomo no soportado: ${atom}`);
         }
+    }
+
+    private generatePatternCheck(pattern: string, tokenName: string): string {
+        const lexer = new PatternLexer(pattern);
+        const tokens = lexer.tokenize();
+        const parser = new PatternParser(tokens);
+        const ast = parser.parse();
+        return this.generateNode(ast, tokenName);
     }
 }

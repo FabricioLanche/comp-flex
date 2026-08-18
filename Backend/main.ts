@@ -1,7 +1,6 @@
 import { TokenDef, GeneratedScanner } from "./types";
 import { PatternLexer } from "./pattern-lexer";
 import { PatternParser } from "./pattern-parser";
-import { ASTtoDFA } from "./ast-to-dfa";
 import { CppGenerator } from "./cpp-generator";
 import * as fs from 'fs';
 import * as path from 'path';
@@ -46,25 +45,48 @@ export class ScannerGenerator {
         fs.writeFileSync(path.join(this.outputDir, 'scanner.h'), scanner.scannerH);
         fs.writeFileSync(path.join(this.outputDir, 'token.cpp'), scanner.tokenCpp);
         fs.writeFileSync(path.join(this.outputDir, 'token.h'), scanner.tokenH);
+        fs.writeFileSync(path.join(this.outputDir, 'main.cpp'), scanner.mainCpp);
 
         console.log(`Archivos generados en ${this.outputDir}:`);
         console.log('  - scanner.cpp');
         console.log('  - scanner.h');
         console.log('  - token.cpp');
         console.log('  - token.h');
+        console.log('  - main.cpp');
     }
 }
 
-// Ejemplo de uso
 if (require.main === module) {
-    const tokens: TokenDef[] = [
-        { name: 'NUM', pattern: '[0-9]+' },
-        { name: 'IDENT', pattern: '[a-z][a-z0-9]*' },
-        { name: 'PLUS', pattern: '+' },
-        { name: 'MINUS', pattern: '-' },
-        { name: 'MUL', pattern: '*' },
-        { name: 'DIV', pattern: '/' }
-    ];
+    const configPath = process.argv[2];
+
+    if (!configPath) {
+        console.error('Uso: npx tsx Backend/main.ts <archivo_config>');
+        process.exit(1);
+    }
+
+    if (!fs.existsSync(configPath)) {
+        console.error(`Archivo no encontrado: ${configPath}`);
+        process.exit(1);
+    }
+
+    const configContent = fs.readFileSync(configPath, 'utf-8');
+    const tokens: TokenDef[] = [];
+
+    for (const line of configContent.trim().split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        const firstSpace = trimmed.indexOf(' ');
+        if (firstSpace === -1) continue;
+        tokens.push({
+            name: trimmed.substring(0, firstSpace),
+            pattern: trimmed.substring(firstSpace + 1)
+        });
+    }
+
+    if (tokens.length === 0) {
+        console.error('No se encontraron tokens en el archivo de configuracion.');
+        process.exit(1);
+    }
 
     const generator = new ScannerGenerator(tokens, './output');
     generator.writeFiles();

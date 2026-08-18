@@ -1,8 +1,8 @@
 // Token types for pattern lexer
 export enum PatternTokenType {
     ATOM_LOWER = "ATOM_LOWER",   // [a-z]
-    ATOM UPPER = "ATOM_UPPER",   // [A-Z]
-    ATOM DIGIT = "ATOM_DIGIT",   // [0-9]
+    ATOM_UPPER = "ATOM_UPPER",   // [A-Z]
+    ATOM_DIGIT = "ATOM_DIGIT",   // [0-9]
     PLUS = "PLUS",               // +
     STAR = "STAR",               // *
     QUESTION = "QUESTION",       // ?
@@ -85,4 +85,5 @@ export interface GeneratedScanner {
     scannerH: string;
     tokenCpp: string;
     tokenH: string;
+    mainCpp: string;
 }
