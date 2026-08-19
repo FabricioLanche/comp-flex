@@ -1,0 +1,13 @@
+Iniciando Scanner para archivo: inputs/input2.txt
+
+TOKEN(NUM, "11")
+TOKEN(PLUS, "+")
+TOKEN(NUM, "12")
+TOKEN(MUL, "*")
+TOKEN(NUM, "13")
+TOKEN(DIV, "/")
+TOKEN(NUM, "15")
+TOKEN(END)
+
+Scanner exitoso
+
