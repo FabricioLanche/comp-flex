@@ -53,7 +53,7 @@ export default function App() {
   }, [screen]);
 
   return (
-    <div className="flex min-h-dvh px-6 py-6 gap-6 overflow-x-hidden max-md:flex-col max-md:items-center max-md:px-2 max-md:py-2 max-md:gap-4">
+    <div className="flex min-h-dvh px-6 py-6 gap-4 overflow-x-hidden max-md:flex-col max-md:items-center max-md:px-2 max-md:py-2 max-md:gap-4">
       {/* Left column — always centers the device */}
       <div className="flex-1 flex justify-center items-center max-md:w-full">
         <div className="w-[440px] max-w-full h-[calc(100dvh-48px)] bg-bg-deep border border-border rounded-3xl flex flex-col overflow-hidden shadow-[0_0_0_1px_rgba(255,255,255,0.03),0_24px_80px_rgba(0,0,0,0.6)] max-md:w-full max-md:max-w-[440px] max-md:h-auto max-md:min-h-[70dvh]">
@@ -91,8 +91,12 @@ export default function App() {
         </div>
       </div>
 
-      {/* Right column — code preview, only when tokens exist */}
-      {tokens.length > 0 && <CodePreview tokens={tokens} />}
+      {/* Right column — code preview, only on screen 3 */}
+      {screen === 3 && (
+        <div className="flex-1 flex justify-center items-center max-md:w-full">
+          <CodePreview tokens={tokens} />
+        </div>
+      )}
     </div>
   );
 }

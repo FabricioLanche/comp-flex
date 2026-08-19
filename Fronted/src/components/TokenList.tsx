@@ -63,7 +63,7 @@ export default function TokenList({ tokens, onRemoveToken, onBack, onGenerate }:
           disabled={tokens.length === 0}
           className="flex-1 py-3.5 text-sm font-semibold font-[inherit] bg-accent border border-accent rounded-xl cursor-pointer text-white transition-all hover:bg-accent-hover hover:border-accent-hover active:scale-[0.98] disabled:opacity-30 disabled:cursor-not-allowed"
         >
-          Generar Scanner →
+          Generar Código C++ →
         </button>
       </div>
     </>

@@ -91,7 +91,7 @@ export default function CodePreview({ tokens }: Props) {
   const code = generateCppCode(tokens);
 
   return (
-    <div className="w-[520px] shrink-0 h-[calc(100dvh-48px)] bg-bg-deep border border-border rounded-[20px] flex flex-col overflow-hidden shadow-[0_16px_60px_rgba(0,0,0,0.5)] max-md:w-full max-md:max-w-[520px] max-md:h-[50dvh]">
+    <div className="w-[640px] shrink-0 h-[calc(100dvh-48px)] bg-bg-deep border border-border rounded-[20px] flex flex-col overflow-hidden shadow-[0_16px_60px_rgba(0,0,0,0.5)] max-md:w-full max-md:max-w-[520px] max-md:h-[50dvh]">
       {/* Title bar */}
       <div className="flex items-center gap-1.5 px-4 py-3.5 border-b border-border shrink-0">
         <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
