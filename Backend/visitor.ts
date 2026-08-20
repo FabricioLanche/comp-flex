@@ -1,5 +1,3 @@
-import { writeFileSync, mkdirSync } from "fs";
-import { join } from "path";
 import {
   Pattern,
   TokenDef,
@@ -35,16 +33,16 @@ export class CppGeneratorVisitor implements Visitor {
 
   // ── Entry point (como gencode del profe) ─────────────────────
 
-  generate(tokenDefs: TokenDef[], outputDir: string): void {
-    mkdirSync(outputDir, { recursive: true });
-
+  generateFiles(tokenDefs: TokenDef[]): GeneratedFile[] {
     const names = tokenDefs.map((t) => t.name);
 
-    writeFileSync(join(outputDir, "token.h"), this.genTokenH(names));
-    writeFileSync(join(outputDir, "token.cpp"), this.genTokenCpp(names));
-    writeFileSync(join(outputDir, "scanner.h"), this.genScannerH());
-    writeFileSync(join(outputDir, "scanner.cpp"), this.genScannerCpp(tokenDefs));
-    writeFileSync(join(outputDir, "main.cpp"), this.genTestMain());
+    return [
+      { name: "token.h",    code: this.genTokenH(names) },
+      { name: "token.cpp",  code: this.genTokenCpp(names) },
+      { name: "scanner.h",  code: this.genScannerH() },
+      { name: "scanner.cpp", code: this.genScannerCpp(tokenDefs) },
+      { name: "main.cpp",   code: this.genTestMain() },
+    ];
   }
 
   // ── Visitor methods (cada nodo genera su código C++) ────────
@@ -551,9 +549,14 @@ function escapeChar(c: string): string {
   return c;
 }
 
-// ── Función de conveniencia (como operator<< del profe) ───────
+// ── Tipos y funciones de conveniencia ──────────────────────────
 
-export function generateCpp(tokenDefs: TokenDef[], outputDir: string): void {
+export interface GeneratedFile {
+  name: string;
+  code: string;
+}
+
+export function generateCppFiles(tokenDefs: TokenDef[]): GeneratedFile[] {
   const visitor = new CppGeneratorVisitor();
-  visitor.generate(tokenDefs, outputDir);
+  return visitor.generateFiles(tokenDefs);
 }

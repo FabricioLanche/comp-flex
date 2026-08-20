@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
-import type { TokenDef, Screen } from './types';
-import { buildDFA } from './engine';
+import type { TokenDef, CodeFile, Screen } from './types';
+import { generateCppFiles } from './engine';
 import StepIndicator from './components/StepIndicator';
 import TokenConstructor from './components/TokenConstructor';
 import TokenList from './components/TokenList';
@@ -10,7 +10,7 @@ import CodePreview from './components/CodePreview';
 export default function App() {
   const [screen, setScreen] = useState<Screen>(1);
   const [tokens, setTokens] = useState<TokenDef[]>([]);
-  const [dfa, setDfa] = useState<object | null>(null);
+  const [codeFiles, setCodeFiles] = useState<CodeFile[]>([]);
 
   const addToken = useCallback((name: string, pattern: string) => {
     setTokens(prev => [...prev, { name, pattern }]);
@@ -21,14 +21,19 @@ export default function App() {
   }, []);
 
   const handleGenerate = useCallback(() => {
-    const result = buildDFA(tokens);
-    setDfa(result);
-    setScreen(3);
+    try {
+      const files = generateCppFiles(tokens);
+      setCodeFiles(files);
+      setScreen(3);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Error al generar';
+      alert(`Error: ${msg}\n\nRevisá que los patrones sean válidos.`);
+    }
   }, [tokens]);
 
   const handleReset = useCallback(() => {
     setTokens([]);
-    setDfa(null);
+    setCodeFiles([]);
     setScreen(1);
   }, []);
 
@@ -40,16 +45,14 @@ export default function App() {
 
   const handleStepClick = useCallback((step: 1 | 2 | 3) => {
     if (step === 1) {
-      // Going back to step 1 from step 3 resets everything
       if (screen === 3) {
         setTokens([]);
-        setDfa(null);
+        setCodeFiles([]);
       }
       setScreen(1);
     } else if (step === 2) {
       setScreen(2);
     }
-    // Step 3 can only be reached via "Generar Scanner"
   }, [screen]);
 
   return (
@@ -82,7 +85,6 @@ export default function App() {
           )}
           {screen === 3 && (
             <StringTester
-              dfa={dfa}
               tokens={tokens}
               onBack={() => setScreen(2)}
               onReset={handleReset}
@@ -94,7 +96,7 @@ export default function App() {
       {/* Right column — code preview, only on screen 3 */}
       {screen === 3 && (
         <div className="flex-1 flex justify-center items-center max-md:w-full">
-          <CodePreview tokens={tokens} />
+          <CodePreview files={codeFiles} />
         </div>
       )}
     </div>

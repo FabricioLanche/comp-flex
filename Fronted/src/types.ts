@@ -11,4 +11,9 @@ export interface ScanResult {
   position?: number;
 }
 
+export interface CodeFile {
+  name: string;
+  code: string;
+}
+
 export type Screen = 1 | 2 | 3;

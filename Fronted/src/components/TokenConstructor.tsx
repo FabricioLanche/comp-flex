@@ -8,11 +8,7 @@ const SYMBOL_BUTTONS = [
   { label: '+',     insert: '+' },
   { label: '*',     insert: '*' },
   { label: '?',     insert: '?' },
-  { label: 'or',    insert: '|' },
-  { label: 'and',   insert: '&' },
-  { label: '-',     insert: '-' },
-  { label: '/',     insert: '/' },
-  { label: '^',     insert: '^' },
+  { label: 'or',    insert: 'or' },
   { label: '(',     insert: '(' },
   { label: ')',     insert: ')' },
 ] as const;
@@ -37,6 +33,11 @@ export default function TokenConstructor({ tokens, onAddToken, onNext }: Props) 
       if (p[i] === '[') {
         const close = p.indexOf(']', i + 1);
         if (close !== -1) { tokens.push(p.slice(i, close + 1)); i = close + 1; continue; }
+      }
+      if (p.slice(i, i + 2) === 'or') {
+        tokens.push('or');
+        i += 2;
+        continue;
       }
       tokens.push(p[i]);
       i++;

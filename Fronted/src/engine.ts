@@ -1,47 +1,47 @@
-import type { TokenDef, ScanResult } from './types';
+import type { TokenDef, CodeFile } from './types';
+import { Scanner } from '@backend/scanner.js';
+import { Parser } from '@backend/parser.js';
+import { generateCppFiles as backendGenerate } from '@backend/visitor.js';
+import type { TokenDef as BackendTokenDef } from '@backend/ast.js';
 
 /**
- * Build a DFA from token definitions.
- *
- * TODO: connect to the real backend engine:
- *   1. Parse each regex with PatternLexer + PatternParser
- *   2. Build NFA via Thompson's construction
- *   3. Convert NFA → DFA via subset construction
- *
- * For now returns a placeholder object.
+ * Parse each token's pattern string into an AST,
+ * validate it, and generate C++ files.
  */
-export function buildDFA(_tokens: TokenDef[]): object {
-  return { ready: true };
+export function generateCppFiles(tokens: TokenDef[]): CodeFile[] {
+  if (tokens.length === 0) return [];
+
+  const backendDefs: BackendTokenDef[] = [];
+
+  for (const tok of tokens) {
+    const sc = new Scanner(tok.pattern);
+    const pa = new Parser(sc);
+    const program = pa.parseProgram();
+    backendDefs.push({ name: tok.name, pattern: program.pattern });
+  }
+
+  return backendGenerate(backendDefs);
 }
 
 /**
- * Run the scanner on an input string using the DFA.
- *
- * TODO: replace stub with real DFA traversal + maximal munch.
- *
- * Returns an array of recognized tokens or lexical errors.
+ * Call the backend HTTP server to compile and run the scanner
+ * on the given test string.
  */
-export function runScanner(_dfa: object, input: string, tokens: TokenDef[]): ScanResult[] {
-  const results: ScanResult[] = [];
-  const firstName = tokens.length > 0 ? tokens[0].name : 'UNKNOWN';
-  let i = 0;
+export async function scanTokens(
+  tokens: TokenDef[],
+  input: string,
+): Promise<string[]> {
+  const res = await fetch('http://localhost:3000/scan', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tokens, input }),
+  });
 
-  while (i < input.length) {
-    if (input[i] === ' ' || input[i] === '\t' || input[i] === '\n') {
-      i++;
-      continue;
-    }
+  const data = await res.json();
 
-    let lexema = '';
-    const start = i;
-    while (i < input.length && input[i] !== ' ' && input[i] !== '\t' && input[i] !== '\n') {
-      lexema += input[i];
-      i++;
-    }
-
-    // Stub: label everything as the first token
-    results.push({ type: 'token', name: firstName, lexema, position: start });
+  if (!res.ok) {
+    throw new Error(data.error || 'Error al escanear');
   }
 
-  return results;
+  return data.tokens as string[];
 }

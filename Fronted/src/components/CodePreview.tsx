@@ -1,110 +1,62 @@
+import { useState } from 'react';
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
 import cpp from 'react-syntax-highlighter/dist/esm/languages/prism/cpp';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import type { TokenDef } from '../types';
+import type { CodeFile } from '../types';
 
 SyntaxHighlighter.registerLanguage('cpp', cpp);
 
 interface Props {
-  tokens: TokenDef[];
+  files: CodeFile[];
 }
 
-function generateCppCode(tokens: TokenDef[]): string {
-  if (tokens.length === 0) return '// Agregá tokens para ver el código generado';
+export default function CodePreview({ files }: Props) {
+  const defaultIdx = files.findIndex(f => f.name === 'scanner.cpp');
+  const [activeTab, setActiveTab] = useState(defaultIdx >= 0 ? defaultIdx : 0);
 
-  const tokenCases = tokens.map(tok => {
-    const escaped = tok.pattern
-      .replace(/\[/g, '\\[')
-      .replace(/\]/g, '\\]')
-      .replace(/\+/g, '\\+')
-      .replace(/\*/g, '\\*')
-      .replace(/\?/g, '\\?')
-      .replace(/\(/g, '\\(')
-      .replace(/\)/g, '\\)')
-      .replace(/\|/g, '\\|');
-    return `        // ${tok.name}: ${tok.pattern}\n        if (matchPattern(input, pos, "${escaped}")) {\n            return Token(TokenType::${tok.name}, lexeme);\n        }`;
-  }).join('\n\n');
+  if (files.length === 0) {
+    return (
+      <div className="w-[640px] shrink-0 h-[calc(100dvh-48px)] bg-bg-deep border border-border rounded-[20px] flex items-center justify-center shadow-[0_16px_60px_rgba(0,0,0,0.5)] max-md:w-full max-md:max-w-[520px] max-md:h-[50dvh]">
+        <p className="text-text-muted text-sm">Generá el scanner para ver el código</p>
+      </div>
+    );
+  }
 
-  const tokenEnum = tokens.map(tok => `    ${tok.name}`).join(',\n');
-
-  return `#include <iostream>
-#include <string>
-#include <vector>
-
-enum class TokenType {
-${tokenEnum}
-};
-
-struct Token {
-    TokenType type;
-    std::string lexeme;
-};
-
-class Scanner {
-private:
-    std::string input;
-    size_t pos;
-
-    bool matchPattern(const std::string& input,
-                      size_t& pos,
-                      const std::string& pattern) {
-        // TODO: connect to DFA engine
-        size_t start = pos;
-        // ... pattern matching logic
-        return pos > start;
-    }
-
-public:
-    Scanner(const std::string& input)
-        : input(input), pos(0) {}
-
-    Token nextToken() {
-        while (pos < input.size()) {
-            size_t start = pos;
-
-${tokenCases}
-
-            // No match found
-            char bad = input[pos++];
-            return Token(TokenType::${tokens[0].name},
-                         std::string(1, bad));
-        }
-        return Token(TokenType::${tokens[0].name}, "");
-    }
-};
-
-int main() {
-    Scanner scanner("hello 123");
-    Token tok;
-    do {
-        tok = scanner.nextToken();
-        std::cout << "TOKEN("
-                  << static_cast<int>(tok.type)
-                  << ", " << tok.lexeme
-                  << ")" << std::endl;
-    } while (!tok.lexeme.empty());
-    return 0;
-}`;
-}
-
-export default function CodePreview({ tokens }: Props) {
-  const code = generateCppCode(tokens);
+  const active = files[activeTab];
 
   return (
     <div className="w-[640px] shrink-0 h-[calc(100dvh-48px)] bg-bg-deep border border-border rounded-[20px] flex flex-col overflow-hidden shadow-[0_16px_60px_rgba(0,0,0,0.5)] max-md:w-full max-md:max-w-[520px] max-md:h-[50dvh]">
       {/* Title bar */}
-      <div className="flex items-center gap-1.5 px-4 py-3.5 border-b border-border shrink-0">
+      <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-border shrink-0">
         <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
         <span className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
         <span className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
-        <span className="ml-2 text-xs font-medium text-text-muted font-mono">
-          scanner.cpp
+        <span className="ml-2 text-[11px] font-medium text-text-muted font-mono">
+          C++ Generated
         </span>
+      </div>
+
+      {/* File tabs */}
+      <div className="flex overflow-x-auto border-b border-border shrink-0 bg-bg-surface scrollbar-none">
+        {files.map((file, i) => (
+          <button
+            key={file.name}
+            onClick={() => setActiveTab(i)}
+            className={`px-3.5 py-2 text-[11px] font-mono whitespace-nowrap border-r border-border transition-colors shrink-0 cursor-pointer ${
+              i === activeTab
+                ? 'bg-bg-deep text-text-primary border-b-2 border-b-accent'
+                : 'bg-transparent text-text-muted hover:bg-bg-hover hover:text-text-secondary'
+            }`}
+          >
+            {file.name}
+          </button>
+        ))}
       </div>
 
       {/* Code body */}
       <div className="flex-1 overflow-y-auto">
         <SyntaxHighlighter
+          key={active.name}
           language="cpp"
           style={oneDark}
           customStyle={{
@@ -118,7 +70,7 @@ export default function CodePreview({ tokens }: Props) {
           showLineNumbers
           lineNumberStyle={{ color: '#6a6a6a', fontSize: '11px', minWidth: '2.5em' }}
         >
-          {code}
+          {active.code}
         </SyntaxHighlighter>
       </div>
     </div>
