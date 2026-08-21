@@ -9,6 +9,9 @@ const SYMBOL_BUTTONS = [
   { label: '*',     insert: '*' },
   { label: '?',     insert: '?' },
   { label: 'or',    insert: 'or' },
+  { label: '-',     insert: '-' },
+  { label: '/',     insert: '/' },
+  { label: '^',     insert: '^' },
   { label: '(',     insert: '(' },
   { label: ')',     insert: ')' },
 ] as const;

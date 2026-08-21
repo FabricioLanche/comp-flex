@@ -66,7 +66,10 @@ export class Parser {
   }
 
   private startsC(): boolean {
-    return this.current.type === TokenType.OPERATOR;
+    return (
+      this.current.type === TokenType.OPERATOR ||
+      this.current.type === TokenType.PLUS ||
+      this.current.type === TokenType.STAR    );
   }
 
   // Entry point (como parseProgram del profe)
@@ -145,12 +148,15 @@ export class Parser {
     return atom;
   }
 
-  // E → OPERATOR
+  // E → + | - | * | / | ^
   parseE(): OperatorExp {
-    if (!this.match(TokenType.OPERATOR)) {
-      throw new Error("Error sintactico: se esperaba OPERATOR");
+    if (
+      this.match(TokenType.OPERATOR) ||
+      this.match(TokenType.PLUS) ||
+      this.match(TokenType.STAR) ) {
+      return operatorExp(this.previous!.text);
     }
-    return operatorExp(this.previous!.text);
+    throw new Error("Error sintactico: se esperaba operador (+, -, *, /, ^)");
   }
 
   // F → LOWERCASE | UPPERCASE | DIGIT | "(" A ")"

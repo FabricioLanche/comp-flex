@@ -76,7 +76,7 @@ export default function StringTester({ tokens, onBack, onReset }: Props) {
           <div className="flex gap-2">
             <input
               type="text"
-              placeholder="Ingresá una cadena para probar..."
+              placeholder="Ingresa una cadena"
               value={testString}
               onChange={e => setTestString(e.target.value)}
               onKeyDown={handleKeyDown}

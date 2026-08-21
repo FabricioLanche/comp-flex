@@ -1,4 +1,4 @@
-import http from "http";
+import * as http from "http";
 import { Scanner } from "./scanner.js";
 import { Parser } from "./parser.js";
 import { TokenDef, Pattern } from "./ast.js";

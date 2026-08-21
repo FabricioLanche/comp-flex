@@ -1,12 +1,12 @@
 import * as readline from "readline";
 import { execFileSync } from "child_process";
-import { writeFileSync, unlinkSync } from "fs";
+import { writeFileSync, mkdirSync, unlinkSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { Scanner } from "./scanner.js";
 import { Parser } from "./parser.js";
 import { TokenDef, Pattern } from "./ast.js";
-import { generateCpp } from "./visitor.js";
+import { generateCppFiles } from "./visitor.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = join(__dirname, "output");
@@ -231,7 +231,11 @@ async function generateAndRun(tokens: TokenDef[]): Promise<void> {
   clear();
   console.log("=== Generar Scanner ===\n");
   console.log("  Generando codigo C++...");
-  generateCpp(tokens, OUTPUT_DIR);
+  const files = generateCppFiles(tokens);
+  mkdirSync(OUTPUT_DIR, { recursive: true });
+  for (const file of files) {
+    writeFileSync(join(OUTPUT_DIR, file.name), file.code);
+  }
   console.log("  Codigo generado.");
 
   console.log("  Compilando...");
