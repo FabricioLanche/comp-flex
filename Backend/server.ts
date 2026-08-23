@@ -3,7 +3,7 @@ import { Scanner } from "./scanner.js";
 import { Parser } from "./parser.js";
 import { TokenDef, Pattern } from "./ast.js";
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 function parseBody(req: http.IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -119,19 +119,21 @@ function runScan(input: string, defs: TokenDef[]): string[] {
       break;
     }
 
-    let matched = false;
+    let bestLen = 0;
+    let bestDef: TokenDef | null = null;
     for (const def of defs) {
       const len = matchPattern(def.pattern, input, pos);
-      if (len > 0) {
-        const lexema = input.substring(pos, pos + len);
-        results.push(`TOKEN(${def.name}, "${lexema}")`);
-        pos += len;
-        matched = true;
-        break;
+      if (len > bestLen) {
+        bestLen = len;
+        bestDef = def;
       }
     }
 
-    if (!matched) {
+    if (bestDef) {
+      const lexema = input.substring(pos, pos + bestLen);
+      results.push(`TOKEN(${bestDef.name}, "${lexema}")`);
+      pos += bestLen;
+    } else {
       const c = input[pos];
       results.push(`TOKEN(ERR, "${c}")`);
       pos++;

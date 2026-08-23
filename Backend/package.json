@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx cli.ts",
-    "server": "tsx server.ts",
+    "server": "tsx watch server.ts",
     "build": "tsc",
     "start": "node dist/cli.js"
   },

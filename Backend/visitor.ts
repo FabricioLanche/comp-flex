@@ -61,26 +61,22 @@ export class CppGeneratorVisitor implements Visitor {
 
     for (const elem of exp.elements) {
       if (elem.kind === "quantified") {
-        const atomCheck = this.genAtomCheck(elem.atom, "p");
         switch (elem.quantifier) {
           case "star":
             lines.push(`    while (p < (int)input.length()) {`);
-            lines.push(`        ${atomCheck} { p++; }`);
-            lines.push(`        else break;`);
+            lines.push(`        ${this.genAtomStep(elem.atom, "p", "break")}`);
             lines.push(`    }`);
             break;
           case "plus":
             lines.push(`    if (p >= (int)input.length()) return false;`);
-            lines.push(`    ${atomCheck} { p++; }`);
-            lines.push(`    else return false;`);
+            lines.push(`    ${this.genAtomStep(elem.atom, "p", "return false")}`);
             lines.push(`    while (p < (int)input.length()) {`);
-            lines.push(`        ${atomCheck} { p++; }`);
-            lines.push(`        else break;`);
+            lines.push(`        ${this.genAtomStep(elem.atom, "p", "break")}`);
             lines.push(`    }`);
             break;
           case "optional":
             lines.push(`    if (p < (int)input.length()) {`);
-            lines.push(`        ${atomCheck} { p++; }`);
+            lines.push(`        ${this.genAtomStep(elem.atom, "p", null)}`);
             lines.push(`    }`);
             break;
         }
@@ -96,8 +92,12 @@ export class CppGeneratorVisitor implements Visitor {
         this.posVar = "p";
         const body = elem.accept(this);
         this.posVar = saved;
-        lines.push(`    { ${body.split("\n").join("\n    ")} }`);
-        lines.push(`    else return false;`);
+        // FIX: envolver en lambda para poder negar (antes el cuerpo era
+        // un bloque de sentencias y el 'else' quedaba huérfano)
+        const check = `[&]() {
+        ${body.split("\n").join("\n        ")}
+    }()`;
+        lines.push(`    if (!(${check})) return false;`);
       }
     }
 
@@ -107,28 +107,24 @@ export class CppGeneratorVisitor implements Visitor {
   }
 
   visitQuantifiedExp(exp: QuantifiedExp): string {
-    const atomCheck = this.genAtomCheck(exp.atom, "p");
     switch (exp.quantifier) {
       case "star":
         return `    while (p < (int)input.length()) {
-        ${atomCheck} { p++; }
-        else break;
+        ${this.genAtomStep(exp.atom, "p", "break")}
     }
     ${this.posVar} = p;
     return true;`;
       case "plus":
         return `    if (p >= (int)input.length()) return false;
-    ${atomCheck} { p++; }
-    else return false;
+    ${this.genAtomStep(exp.atom, "p", "return false")}
     while (p < (int)input.length()) {
-        ${atomCheck} { p++; }
-        else break;
+        ${this.genAtomStep(exp.atom, "p", "break")}
     }
     ${this.posVar} = p;
     return true;`;
       case "optional":
         return `    if (p < (int)input.length()) {
-        ${atomCheck} { p++; }
+        ${this.genAtomStep(exp.atom, "p", null)}
     }
     ${this.posVar} = p;
     return true;`;
@@ -161,6 +157,25 @@ export class CppGeneratorVisitor implements Visitor {
   }
 
   // ── Helpers privados ────────────────────────────────────────
+  private genAtomStep(atom: CharClass | GroupExp, posVar: string, failAction: string | null): string {
+    if (atom.kind === "charclass") {
+      const inc = `{ ${posVar}++; }`;
+      const cond = this.charClassCondition(atom.value, posVar);
+      return failAction === null
+        ? `if (${cond}) ${inc}`
+        : `if (${cond}) ${inc}\n        else ${failAction};`;
+    }
+    const saved = this.posVar;
+    this.posVar = posVar;
+    const inner = atom.inner.accept(this);
+    this.posVar = saved;
+    const lambda = `[&]() {
+            ${inner.split("\n").join("\n            ")}
+        }()`;
+    return failAction === null
+      ? `(${lambda});`
+      : `if (!(${lambda})) ${failAction};`;
+  }
 
   private genMatchBodyNoReturn(p: Pattern, posVar: string): string {
     if (p.kind === "charclass") {
@@ -184,14 +199,12 @@ export class CppGeneratorVisitor implements Visitor {
     }())`;
     }
     if (p.kind === "quantified") {
-      const atomCheck = this.genAtomCheckNoReturn(p.atom, "_p");
       switch (p.quantifier) {
         case "star":
           return `[&, _saved = ${posVar}]() {
         int _p = _saved;
         while (_p < (int)input.length()) {
-            ${atomCheck} { _p++; }
-            else break;
+            ${this.genAtomStep(p.atom, "_p", "break")}
         }
         ${posVar} = _p;
         return true;
@@ -200,11 +213,9 @@ export class CppGeneratorVisitor implements Visitor {
           return `[&, _saved = ${posVar}]() {
         int _p = _saved;
         if (_p >= (int)input.length()) return false;
-        ${atomCheck} { _p++; }
-        else return false;
+        ${this.genAtomStep(p.atom, "_p", "return false")}
         while (_p < (int)input.length()) {
-            ${atomCheck} { _p++; }
-            else break;
+            ${this.genAtomStep(p.atom, "_p", "break")}
         }
         ${posVar} = _p;
         return true;
@@ -213,7 +224,7 @@ export class CppGeneratorVisitor implements Visitor {
           return `[&, _saved = ${posVar}]() {
         int _p = _saved;
         if (_p < (int)input.length()) {
-            ${atomCheck} { _p++; }
+            ${this.genAtomStep(p.atom, "_p", null)}
         }
         ${posVar} = _p;
         return true;
@@ -228,26 +239,22 @@ export class CppGeneratorVisitor implements Visitor {
       lines.push(`    int _p = _saved;`);
       for (const elem of p.elements) {
         if (elem.kind === "quantified") {
-          const atomCheck = this.genAtomCheckNoReturn(elem.atom, "_p");
           switch (elem.quantifier) {
             case "star":
               lines.push(`    while (_p < (int)input.length()) {`);
-              lines.push(`        ${atomCheck} { _p++; }`);
-              lines.push(`        else break;`);
+              lines.push(`        ${this.genAtomStep(elem.atom, "_p", "break")}`);
               lines.push(`    }`);
               break;
             case "plus":
               lines.push(`    if (_p >= (int)input.length()) return false;`);
-              lines.push(`    ${atomCheck} { _p++; }`);
-              lines.push(`    else return false;`);
+              lines.push(`    ${this.genAtomStep(elem.atom, "_p", "return false")}`);
               lines.push(`    while (_p < (int)input.length()) {`);
-              lines.push(`        ${atomCheck} { _p++; }`);
-              lines.push(`        else break;`);
+              lines.push(`        ${this.genAtomStep(elem.atom, "_p", "break")}`);
               lines.push(`    }`);
               break;
             case "optional":
               lines.push(`    if (_p < (int)input.length()) {`);
-              lines.push(`        ${atomCheck} { _p++; }`);
+              lines.push(`        ${this.genAtomStep(elem.atom, "_p", null)}`);
               lines.push(`    }`);
               break;
           }
@@ -259,6 +266,12 @@ export class CppGeneratorVisitor implements Visitor {
           const escaped = escapeChar(elem.op);
           lines.push(`    if (_p < (int)input.length() && input[_p] == '${escaped}') { _p++; }`);
           lines.push(`    else return false;`);
+        } else {
+          const body = elem.accept(this);
+          const check = `[&]() {
+        ${body.split("\n").join("\n        ")}
+    }()`;
+          lines.push(`    if (!(${check})) return false;`);
         }
       }
       lines.push(`    ${posVar} = _p;`);
@@ -271,26 +284,6 @@ export class CppGeneratorVisitor implements Visitor {
       return this.genMatchBodyNoReturn(p.inner, posVar);
     }
     return p.accept(this);
-  }
-
-  private genAtomCheck(atom: CharClass | GroupExp, posVar: string): string {
-    if (atom.kind === "charclass") {
-      return `if (${this.charClassCondition(atom.value, posVar)})`;
-    }
-    const saved = this.posVar;
-    this.posVar = posVar;
-    const inner = atom.inner.accept(this);
-    this.posVar = saved;
-    return `if ([&]() {
-        ${inner.split("\n").join("\n        ")}
-    }()`;
-  }
-
-  private genAtomCheckNoReturn(atom: CharClass | GroupExp, posVar: string): string {
-    if (atom.kind === "charclass") {
-      return `if (${this.charClassCondition(atom.value, posVar)})`;
-    }
-    return `if (${this.genMatchBodyNoReturn(atom.inner, posVar)})`;
   }
 
   private charClassCondition(value: string, posVar: string): string {
@@ -400,15 +393,21 @@ void ejecutar_scanner(Scanner* scanner, const string& InputFile);
 
   private genScannerCpp(tokenDefs: TokenDef[]): string {
     const matchFns = tokenDefs.map((t) => this.genMatchFunction(t)).join("\n");
-
-    const ifChain = tokenDefs
-      .map((t, i) => {
-        const keyword = i === 0 ? "if" : "else if";
-        return `    ${keyword} (match_${t.name}(input, current)) {
-        token = new Token(Token::${t.name}, input, first, current - first);
-    }`;
-      })
-      .join("\n");
+    // matches de longitud cero (evita bucles infinitos con tokens como [0-9]*)
+    const attemptBlocks = tokenDefs
+      .map(
+        (t) => `    {
+        int saved = current;
+        if (match_${t.name}(input, current)) {
+            if (current > first && current > best_end) {
+                best_end = current;
+                best_type = Token::${t.name};
+            }
+        }
+        current = saved;
+    }`,
+      )
+      .join("\n\n");
 
     return `#include <iostream>
 #include <cstring>
@@ -437,8 +436,15 @@ Token* Scanner::nextToken() {
 
     first = current;
 
-${ifChain}
-    else {
+    int best_end = -1;
+    Token::Type best_type = Token::ERR;
+
+${attemptBlocks}
+
+    if (best_end >= 0) {
+        current = best_end;
+        token = new Token(best_type, input, first, best_end - first);
+    } else {
         token = new Token(Token::ERR, input, first, 1);
         current++;
     }

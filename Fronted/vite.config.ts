@@ -10,4 +10,18 @@ export default defineConfig({
       '@backend': resolve(__dirname, '../Backend'),
     },
   },
+  server: {
+    host: true,
+    watch: { usePolling: true },
+    proxy: {
+      '/scan': {
+        target: process.env.BACKEND_ORIGIN ?? 'http://localhost:3000',
+        changeOrigin: true,
+      },
+      '/health': {
+        target: process.env.BACKEND_ORIGIN ?? 'http://localhost:3000',
+        changeOrigin: true,
+      },
+    },
+  },
 })

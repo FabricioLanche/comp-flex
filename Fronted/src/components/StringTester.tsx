@@ -140,9 +140,9 @@ export default function StringTester({ tokens, onBack, onReset }: Props) {
         </button>
         <button
           onClick={onReset}
-          className="flex-1 py-3.5 text-sm font-semibold font-[inherit] bg-transparent border border-border rounded-xl cursor-pointer text-text-muted transition-all hover:bg-bg-hover hover:text-text-secondary active:scale-[0.98]"
+          className="flex-1 py-3.5 text-sm font-semibold font-[inherit] bg-transparent border border-border rounded-xl cursor-pointer text-text-muted transition-all hover:bg-bg-hover hover:text-warning hover:border-warning active:scale-[0.98]"
         >
-          Modificar Tokens
+          ↺ Reiniciar Todo
         </button>
       </div>
     </>

@@ -1,0 +1,26 @@
+services:
+  backend:
+    build: ./Backend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./Backend:/app
+      - /app/node_modules
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Fronted/Dockerfile
+    ports:
+      - "5173:5173"
+    environment:
+      BACKEND_ORIGIN: http://backend:3000
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ./Fronted:/app/Fronted
+      - ./Backend:/app/Backend
+      - /app/Fronted/node_modules
+    depends_on:
+      - backend
+    restart: unless-stopped

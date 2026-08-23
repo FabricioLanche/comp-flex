@@ -5,6 +5,8 @@ import {
   Program,
   SequenceExp,
   OperatorExp,
+  CharClass,
+  GroupExp,
   binaryExp,
   sequenceExp,
   quantifiedExp,
@@ -23,7 +25,7 @@ export class Parser {
     this.previous = null;
     this.current = scanner.nextToken();
     if (this.current.type === TokenType.ERR) {
-      throw new Error("Error lexico");
+      throw new Error(`Error lexico: carácter no válido '${this.current.text}'`);
     }
   }
 
@@ -45,7 +47,7 @@ export class Parser {
       this.previous = this.current;
       this.current = this.scanner.nextToken();
       if (this.current.type === TokenType.ERR) {
-        throw new Error("Error lexico");
+        throw new Error(`Error lexico: carácter no válido '${this.current.text}'`);
       }
       return true;
     }
@@ -69,33 +71,28 @@ export class Parser {
     return (
       this.current.type === TokenType.OPERATOR ||
       this.current.type === TokenType.PLUS ||
-      this.current.type === TokenType.STAR    );
+      this.current.type === TokenType.STAR
+    );
   }
 
-  // Entry point (como parseProgram del profe)
+  // Entry point
   parseProgram(): Program {
-    const pattern = this.parsePattern();
-    if (!this.isAtEnd()) {
-      throw new Error("Error sintactico: tokens sobrantes");
-    }
+    const pattern = this.parseA();
+    if (!this.isAtEnd()) throw new Error(`Error sintactico: token inesperado ${this.current.toString()} después de completar el patrón`);
     return new Program(pattern);
   }
 
   // A → B ("or" B)* | C
-  parsePattern(): Pattern {
-    if (this.startsC()) {
-      return this.parseC();
+  parseA(): Pattern {
+    if (this.startsC()) return this.parseC();
+    else {
+      let result: Pattern = this.parseB();
+      while (this.match(TokenType.OR)) {
+        const right = this.parseB();
+        result = binaryExp("or", result, right);
+      }
+      return result;
     }
-
-    let result: Pattern = this.parseB();
-
-    while (this.check(TokenType.OR)) {
-      this.advance();
-      const right = this.parseB();
-      result = binaryExp("or", result, right);
-    }
-
-    return result;
   }
 
   // B → D+
@@ -122,57 +119,35 @@ export class Parser {
     return sequenceExp(elements);
   }
 
-  // D → F ("+" | "*" | "?")?
+  // D → F+ | F* | F? | F
   parseD(): Pattern {
     const atom = this.parseF();
 
-    if (
-      this.current.type === TokenType.PLUS ||
-      this.current.type === TokenType.STAR ||
-      this.current.type === TokenType.QUESTION
-    ) {
-      const qt = this.current.type;
-      this.advance();
-
-      if (atom.kind === "charclass" || atom.kind === "group") {
-        const q =
-          qt === TokenType.STAR
-            ? "star"
-            : qt === TokenType.PLUS
-            ? "plus"
-            : "optional";
-        return quantifiedExp(atom, q);
-      }
-    }
+    if (this.match(TokenType.STAR))     return quantifiedExp(atom, "star");
+    if (this.match(TokenType.PLUS))     return quantifiedExp(atom, "plus");
+    if (this.match(TokenType.QUESTION)) return quantifiedExp(atom, "optional");
 
     return atom;
   }
 
   // E → + | - | * | / | ^
   parseE(): OperatorExp {
-    if (
-      this.match(TokenType.OPERATOR) ||
-      this.match(TokenType.PLUS) ||
-      this.match(TokenType.STAR) ) {
-      return operatorExp(this.previous!.text);
-    }
-    throw new Error("Error sintactico: se esperaba operador (+, -, *, /, ^)");
+    if (this.match(TokenType.OPERATOR)) return operatorExp(this.previous!.text);
+    if (this.match(TokenType.PLUS))     return operatorExp(this.previous!.text);
+    if (this.match(TokenType.STAR))     return operatorExp(this.previous!.text);
+    throw new Error(`Error sintactico: se esperaba un operador (+, -, *, /, ^) válido pero se encontró ${this.current.toString()}`);
   }
 
   // F → LOWERCASE | UPPERCASE | DIGIT | "(" A ")"
-  parseF(): Pattern {
+  parseF(): CharClass | GroupExp {
     if (this.match(TokenType.LOWERCASE)) return charClass("lowercase");
     if (this.match(TokenType.UPPERCASE)) return charClass("uppercase");
     if (this.match(TokenType.DIGIT))     return charClass("digit");
-
     if (this.match(TokenType.LPAREN)) {
-      const inner = this.parsePattern();
-      if (!this.match(TokenType.RPAREN)) {
-        throw new Error("Error sintactico: se esperaba ')'");
-      }
+      const inner = this.parseA();
+      if (!this.match(TokenType.RPAREN)) throw new Error(`Error sintactico: se esperaba ')' de cierre pero se encontró ${this.current.toString()}`);
       return groupExp(inner);
     }
-
-    throw new Error("Error sintactico");
+    throw new Error(`Error sintactico: se esperaba [a-z], [A-Z], [0-9] o '(' pero se encontró ${this.current.toString()}`);
   }
 }

@@ -2,6 +2,9 @@
 
 Generador de scanners léxicos para el curso de Compiladores. Define tokens con patrones regulares, genera código C++ y prueba el scanner en tiempo real.
 
+> 🎥 **Video de la exposición:** debido a su peso (244 MB) no está versionado en el repositorio; se encuentra alojado en Google Drive:
+> **[Ver TareaOpcional.mp4 en Drive](https://drive.google.com/file/d/1g95cg5B7Ec3wDGuAAOgslbkw9nGJMjkz/view?usp=sharing)**
+
 ## Gramática
 
 ```
@@ -30,32 +33,21 @@ F → [a-z] | [A-Z] | [0-9] | (A)
 ## Requisitos
 
 - Node.js >= 18
-
-## Instalación
-
-```bash
-# Frontend
-cd Fronted
-npm install
-
-# Backend
-cd Backend
-npm install
-```
+- Alternativa: Docker (para levantar todo con un solo comando, ver más abajo)
 
 ## Uso
-
-### Frontend (interfaz web)
 
 Necesitas **2 terminales**:
 
 ```bash
 # Terminal 1 — Backend server
 cd Backend
+npm install
 npm run server
 
 # Terminal 2 — Frontend
 cd Fronted
+npm install
 npm run dev
 ```
 
@@ -78,6 +70,30 @@ npm run dev
 ```
 
 Menú interactivo para agregar tokens, generar el scanner C++ y compilarlo (requiere g++ instalado).
+
+## Alternativa: Docker Compose
+
+Levanta backend + frontend con un solo comando (requiere Docker):
+
+```bash
+docker compose up --build
+```
+
+- Frontend: `http://localhost:5173`
+- Backend API: `http://localhost:3000` (`POST /scan`, `GET /health`)
+- Hot-reload incluido: los cambios en `Backend/` y `Fronted/` se reflejan automáticamente
+
+Detener:
+
+```bash
+docker compose down
+```
+
+CLI interactivo dentro del contenedor:
+
+```bash
+docker compose run --rm backend npm run dev
+```
 
 ## Estructura del proyecto
 

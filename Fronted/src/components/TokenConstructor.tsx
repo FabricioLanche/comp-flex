@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, type KeyboardEvent } from 'react';
 import type { TokenDef } from '../types';
+import { validatePattern } from '../engine';
 
 const SYMBOL_BUTTONS = [
   { label: '[a-z]', insert: '[a-z]' },
@@ -80,14 +81,14 @@ export default function TokenConstructor({ tokens, onAddToken, onNext }: Props) 
     const charWidth = 14.4;
     const clickChar = Math.round(clickX / charWidth);
 
-    let accum = 0;
+    const offsets = [0];
+    tokensFromPattern.forEach((tok, i) => offsets.push(offsets[i] + tok.length));
+
     let bestIdx = 0;
     let bestDist = Infinity;
-    tokensFromPattern.forEach((tok, i) => {
-      const mid = accum + tok.length / 2;
-      const dist = Math.abs(clickChar - mid);
-      if (dist < bestDist) { bestDist = dist; bestIdx = i + 1; }
-      accum += tok.length;
+    offsets.forEach((off, idx) => {
+      const dist = Math.abs(clickChar - off);
+      if (dist < bestDist) { bestDist = dist; bestIdx = idx; }
     });
     setTokenCursor(bestIdx);
   }, [tokensFromPattern]);
@@ -97,6 +98,11 @@ export default function TokenConstructor({ tokens, onAddToken, onNext }: Props) 
     const trimmedPattern = pattern.trim();
     if (!trimmedName || !trimmedPattern) {
       alert('Completa el nombre y el patrón del token.');
+      return;
+    }
+    const error = validatePattern(trimmedPattern);
+    if (error) {
+      alert(`Patrón inválido para "${trimmedName}":\n${error}`);
       return;
     }
     onAddToken(trimmedName, trimmedPattern);
@@ -161,23 +167,6 @@ export default function TokenConstructor({ tokens, onAddToken, onNext }: Props) 
               {renderPattern()}
             </div>
           </div>
-          <div className="absolute top-2.5 right-2.5 flex gap-1">
-            <button
-              className="bg-transparent border border-border rounded-md w-[26px] h-[26px] flex items-center justify-center text-[13px] text-text-muted transition-all hover:bg-bg-hover hover:text-danger disabled:opacity-30"
-              onClick={handleDelete}
-              title="Borrar último carácter"
-              disabled={tokensFromPattern.length === 0}
-            >
-              ⌫
-            </button>
-            <button
-              className="bg-transparent border border-border rounded-md w-[26px] h-[26px] flex items-center justify-center text-[13px] text-text-muted transition-all hover:bg-bg-hover hover:text-text-secondary"
-              onClick={handleReset}
-              title="Reiniciar patrón"
-            >
-              ↺
-            </button>
-          </div>
         </div>
 
         {/* Registered tokens summary — floating overlay */}
@@ -220,11 +209,25 @@ export default function TokenConstructor({ tokens, onAddToken, onNext }: Props) 
               <button
                 key={btn.label}
                 onClick={() => handleInsert(btn.insert)}
-                className="py-4 text-[15px] font-mono font-medium bg-bg-elevated border border-border rounded-xl cursor-pointer text-text-primary transition-all hover:bg-bg-hover hover:text-white active:scale-[0.96]"
+                className="py-4 text-[15px] font-mono font-medium bg-bg-elevated border border-border-keypad rounded-xl cursor-pointer text-text-primary transition-all hover:bg-bg-hover hover:text-white hover:border-text-muted active:scale-[0.96]"
               >
                 {btn.label}
               </button>
             ))}
+            <button
+              onClick={handleReset}
+              title="Reiniciar patrón"
+              className="col-start-3 py-4 text-[15px] font-mono font-medium bg-bg-elevated border border-border-keypad rounded-xl cursor-pointer text-text-secondary transition-all hover:bg-bg-hover hover:text-warning hover:border-warning active:scale-[0.96]"
+            >
+              ↺
+            </button>
+            <button
+              onClick={handleDelete}
+              title="Borrar último carácter"
+              className="py-4 text-[15px] font-mono font-medium bg-bg-elevated border border-border-keypad rounded-xl cursor-pointer text-text-primary transition-all hover:bg-bg-hover hover:text-danger hover:border-danger active:scale-[0.96]"
+            >
+              ⌫
+            </button>
           </div>
         </div>
       </div>
