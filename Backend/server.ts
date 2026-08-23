@@ -16,12 +16,14 @@ function parseBody(req: http.IncomingMessage): Promise<string> {
 
 // ── Scanner TS (replica la lógica del C++ generado) ────────────
 
+// Convención: -1 = no matchea; >=0 = longitud consumida (0 válido
+// para elementos anulables como [x]* o [x]?)
 function matchPattern(node: Pattern, input: string, pos: number): number {
   switch (node.kind) {
     case "charclass":
       return matchCharClass(node.value, input, pos);
     case "operator":
-      if (pos >= input.length || input[pos] !== node.op) return 0;
+      if (pos >= input.length || input[pos] !== node.op) return -1;
       return 1;
     case "group":
       return matchPattern(node.inner, input, pos);
@@ -32,7 +34,7 @@ function matchPattern(node: Pattern, input: string, pos: number): number {
     case "binary":
       return matchBinary(node.left, node.right, input, pos);
     default:
-      return 0;
+      return -1;
   }
 }
 
@@ -41,12 +43,12 @@ function matchCharClass(
   input: string,
   pos: number,
 ): number {
-  if (pos >= input.length) return 0;
+  if (pos >= input.length) return -1;
   const c = input[pos];
   switch (value) {
-    case "lowercase": return c >= "a" && c <= "z" ? 1 : 0;
-    case "uppercase": return c >= "A" && c <= "Z" ? 1 : 0;
-    case "digit":     return c >= "0" && c <= "9" ? 1 : 0;
+    case "lowercase": return c >= "a" && c <= "z" ? 1 : -1;
+    case "uppercase": return c >= "A" && c <= "Z" ? 1 : -1;
+    case "digit":     return c >= "0" && c <= "9" ? 1 : -1;
   }
 }
 
@@ -54,7 +56,7 @@ function matchSequence(elements: Pattern[], input: string, pos: number): number 
   let total = 0;
   for (const elem of elements) {
     const len = matchPattern(elem, input, pos + total);
-    if (len === 0) return 0;
+    if (len === -1) return -1;
     total += len;
   }
   return total;
@@ -71,20 +73,21 @@ function matchQuantified(
   if (quantifier === "star" || quantifier === "plus") {
     if (quantifier === "plus") {
       const first = matchPattern(atom, input, pos);
-      if (first === 0) return 0;
+      if (first === -1) return -1;
       total += first;
     }
     // Greedy: match as many as possible
     while (pos + total < input.length) {
       const next = matchPattern(atom, input, pos + total);
-      if (next === 0) break;
+      if (next === -1) break;
       total += next;
     }
     return total;
   }
 
-  // optional
-  return matchPattern(atom, input, pos);
+  // optional: nunca falla; consume 0 o el largo del átomo
+  const len = matchPattern(atom, input, pos);
+  return len === -1 ? 0 : len;
 }
 
 function matchBinary(
@@ -94,7 +97,7 @@ function matchBinary(
   pos: number,
 ): number {
   const leftLen = matchPattern(left, input, pos);
-  if (leftLen > 0) return leftLen;
+  if (leftLen !== -1) return leftLen;
   return matchPattern(right, input, pos);
 }
 
